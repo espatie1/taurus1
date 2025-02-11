@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>WatchParty - Главная</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <h1>WatchParty</h1>
+    <div id="user-info">
+      <!-- Если пользователь вошёл, здесь будет его имя -->
+    </div>
+  </header>
+  <main>
+    <section id="rooms-list">
+      <h2>Доступные комнаты</h2>
+      <ul id="roomsContainer"></ul>
+    </section>
+    <section id="actions">
+      <button id="createRoomBtn" style="display: none;">Создать комнату</button>
+    </section>
+  </main>
+
+  <!-- Модальное окно для входа -->
+  <div id="loginModal" class="modal">
+    <div class="modal-content">
+      <span class="close" id="closeLogin">&times;</span>
+      <h2>Вход</h2>
+      <form id="loginForm">
+        <input type="email" name="email" placeholder="Email" required>
+        <input type="password" name="password" placeholder="Пароль" required>
+        <button type="submit">Войти</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Модальное окно для регистрации -->
+  <div id="registerModal" class="modal">
+    <div class="modal-content">
+      <span class="close" id="closeRegister">&times;</span>
+      <h2>Регистрация</h2>
+      <form id="registerForm">
+        <input type="text" name="username" placeholder="Имя пользователя" required>
+        <input type="email" name="email" placeholder="Email" required>
+        <input type="password" name="password" placeholder="Пароль" required>
+        <button type="submit">Зарегистрироваться</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Кнопки для открытия модальных окон -->
+  <div id="auth-buttons">
+    <button id="openLogin">Войти</button>
+    <button id="openRegister">Регистрация</button>
+  </div>
+
+  <script>
+    // Функция для получения токена из localStorage
+    function getToken() {
+      return localStorage.getItem('token');
+    }
+
+    // Загрузка информации о пользователе
+    async function loadUserInfo() {
+      const token = getToken();
+      if (token) {
+        try {
+          const res = await fetch('/api/auth/me', {
+            method: 'GET',
+            headers: { 'x-auth-token': token }
+          });
+          if (res.ok) {
+            const user = await res.json();
+            document.getElementById('user-info').textContent = `Привет, ${user.username}`;
+            // Скрываем кнопки авторизации
+            document.getElementById('auth-buttons').style.display = 'none';
+            // Показываем кнопку создания комнаты
+            document.getElementById('createRoomBtn').style.display = 'block';
+          } else {
+            console.log('Не удалось получить данные пользователя');
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    }
+
+    // Загрузка списка комнат
+    async function loadRooms() {
+      try {
+        const res = await fetch('/api/rooms');
+        const rooms = await res.json();
+        const container = document.getElementById('roomsContainer');
+        container.innerHTML = '';
+        rooms.forEach(room => {
+          const li = document.createElement('li');
+          li.innerHTML = `<strong>${room.name}</strong> — Хост: ${room.host} — Участников: ${room.participantsCount}`;
+          li.addEventListener('click', () => {
+            // При клике переходим в комнату
+            window.location.href = `/room.html?roomId=${room.id}`;
+          });
+          container.appendChild(li);
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // Обработчики модальных окон
+    const loginModal = document.getElementById('loginModal');
+    const registerModal = document.getElementById('registerModal');
+    document.getElementById('openLogin').addEventListener('click', () => {
+      loginModal.style.display = 'block';
+    });
+    document.getElementById('openRegister').addEventListener('click', () => {
+      registerModal.style.display = 'block';
+    });
+    document.getElementById('closeLogin').addEventListener('click', () => {
+      loginModal.style.display = 'none';
+    });
+    document.getElementById('closeRegister').addEventListener('click', () => {
+      registerModal.style.display = 'none';
+    });
+    window.addEventListener('click', (event) => {
+      if (event.target === loginModal) loginModal.style.display = 'none';
+      if (event.target === registerModal) registerModal.style.display = 'none';
+    });
+
+    // Обработчики форм регистрации и входа
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const result = await res.json();
+      if (result.token) {
+        localStorage.setItem('token', result.token);
+        alert('Регистрация успешна');
+        registerModal.style.display = 'none';
+        loadUserInfo();
+      } else {
+        alert(result.msg);
+      }
+    });
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const result = await res.json();
+      if (result.token) {
+        localStorage.setItem('token', result.token);
+        alert('Вход успешен');
+        loginModal.style.display = 'none';
+        loadUserInfo();
+      } else {
+        alert(result.msg);
+      }
+    });
+
+    // Обработчик кнопки создания комнаты
+    document.getElementById('createRoomBtn').addEventListener('click', async () => {
+      const token = getToken();
+      if (!token) {
+        alert('Для создания комнаты необходимо войти в систему');
+        return;
+      }
+      const roomName = prompt('Введите название комнаты:', 'Новая комната');
+      const res = await fetch('/api/rooms/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token
+        },
+        body: JSON.stringify({ name: roomName })
+      });
+      const room = await res.json();
+      if (room._id) {
+        window.location.href = `/room.html?roomId=${room._id}`;
+      } else {
+        alert(room.msg || 'Ошибка создания комнаты');
+      }
+    });
+
+    // Инициализация
+    loadUserInfo();
+    loadRooms();
+  </script>
+</body>
+</html>

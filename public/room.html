@@ -1,0 +1,485 @@
+<!-- room.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Комната WatchParty</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <button id="backBtn">На главную</button>
+    <div id="roomInfo">
+      <!-- Информация о комнате (название, хост и т.п.) -->
+    </div>
+    <div id="userControls">
+      <!-- Если пользователь — хост, здесь появятся кнопки для настройки, удаления и переключения видео -->
+    </div>
+  </header>
+  <main>
+    <!-- Контейнер для плеера YouTube -->
+    <div id="player"></div>
+
+    <!-- Элементы управления плеером -->
+    <div id="controls">
+      <button id="playBtn">Воспроизвести</button>
+      <button id="pauseBtn">Пауза</button>
+      <button id="rewindBtn">Перемотать</button>
+    </div>
+
+    <!-- Кнопка для предложения видео -->
+    <button id="proposeVideoBtn">Предложить видео</button>
+
+    <!-- Очередь видео -->
+    <div id="queue">
+      <h2>Очередь видео</h2>
+      <ul id="queueList"></ul>
+    </div>
+  </main>
+
+  <!-- Модальное окно для предложения видео -->
+  <div id="videoModal" class="modal">
+    <div class="modal-content">
+      <span class="close" id="closeVideoModal">&times;</span>
+      <h2>Предложить видео</h2>
+      <form id="videoForm">
+        <input type="text" name="videoUrl" placeholder="Ссылка на видео (YouTube)" required>
+        <button type="submit">Добавить в очередь</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Модальное окно для конфигурации комнаты -->
+<div id="configModal" class="modal">
+    <div class="modal-content">
+      <span class="close" id="closeConfigModal">&times;</span>
+      <h2>Настройки комнаты</h2>
+      <form id="configForm">
+        <label>
+          Название комнаты:
+          <input type="text" name="name" id="roomNameInput" required>
+        </label>
+        <br>
+        <label>
+          Автоматический переход на следующее видео:
+          <input type="checkbox" name="autoNext" id="autoNextCheckbox">
+        </label>
+        <br>
+        <label>
+          Любой участник может управлять плеером:
+          <input type="checkbox" name="allowAllControl" id="allowAllControlCheckbox">
+        </label>
+        <br>
+        <button type="submit">Сохранить настройки</button>
+      </form>
+    </div>
+  </div>
+  
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+    // Извлечение roomId из URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomId = urlParams.get('roomId');
+
+    // Инициализация Socket.io
+    const socket = io();
+    socket.emit('joinRoom', roomId);
+
+    socket.on('userJoined', (data) => {
+      console.log(`Пользователь ${data.socketId} присоединился`);
+    });
+
+    socket.on('syncPlayer', (data) => {
+      if (player && typeof player.seekTo === 'function') {
+        player.seekTo(data.timestamp, true);
+        if (data.action === 'play') {
+          player.playVideo();
+        } else if (data.action === 'pause') {
+          player.pauseVideo();
+        }
+      }
+    });
+
+    socket.on('videoChanged', (data) => {
+        if(data && data.videoId) {
+            // Если videoId содержит полный URL, можно попробовать извлечь только идентификатор
+            let videoId = data.videoId;
+            if(videoId.includes('youtube.com')) {
+                try {
+                    const urlObj = new URL(videoId);
+                    videoId = urlObj.searchParams.get('v') || videoId;
+                } catch (e) {
+                    console.error('Ошибка при разборе URL', e);
+                }
+            }
+            player.loadVideoById(videoId);
+        } else {
+            player.stopVideo();
+        }
+    });
+    
+
+    // YouTube IFrame API: создание плеера
+    let player;
+    function onYouTubeIframeAPIReady() {
+        // Если объект player уже существует, уничтожаем его и очищаем контейнер
+        if (player && typeof player.destroy === 'function') {
+          player.destroy();
+          document.getElementById('player').innerHTML = ''; // очистка контейнера
+        }
+        player = new YT.Player('player', {
+          height: '390',
+          width: '640',
+          videoId: 'dQw4w9WgXcQ', // дефолтное видео (RickRoll)
+          events: {
+            'onReady': onPlayerReady,
+            'onStateChange': onPlayerStateChange
+          }
+        });
+        window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+      }
+      
+
+    function onPlayerReady(event) {
+        // Если для комнаты задано текущее видео, переключаем плеер
+        if (window.currentRoomVideoId) {
+          player.loadVideoById(window.currentRoomVideoId);
+        }
+        // Автозапуск видео (учтите, что браузер может блокировать автозапуск со звуком)
+        player.playVideo();
+        
+        // Привязка обработчиков кнопок:
+        document.getElementById('playBtn').addEventListener('click', () => {
+          player.playVideo();
+          socket.emit('playerAction', {
+            roomId,
+            action: 'play',
+            timestamp: player.getCurrentTime()
+          });
+        });
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+          player.pauseVideo();
+          socket.emit('playerAction', {
+            roomId,
+            action: 'pause',
+            timestamp: player.getCurrentTime()
+          });
+        });
+        document.getElementById('rewindBtn').addEventListener('click', () => {
+          const newTime = Math.max(player.getCurrentTime() - 10, 0);
+          player.seekTo(newTime, true);
+          socket.emit('playerAction', {
+            roomId,
+            action: 'rewind',
+            timestamp: newTime
+          });
+        });
+      }
+      
+    
+    function onPlayerStateChange(event) {
+        // YT.PlayerState.ENDED имеет значение 0
+        if (event.data === YT.PlayerState.ENDED) {
+          // Если пользователь – хост и autoNext включен, переходим к следующему видео
+          if (window.isHost && window.autoNext) {
+            fetchNextVideo();
+          }
+        }
+      }
+    
+      async function fetchNextVideo() {
+        const token = getToken();
+        try {
+          const res = await fetch(`/api/rooms/${roomId}/next`, {
+            method: 'POST',
+            headers: { 'x-auth-token': token }
+          });
+          const result = await res.json();
+          alert(result.msg);
+          if (result.currentVideo && result.currentVideo.url) {
+            let videoId = result.currentVideo.url;
+            // Если строка содержит 'youtube', попробуем извлечь параметр "v"
+            if (videoId.includes('youtube.com')) {
+              try {
+                const urlObj = new URL(videoId);
+                videoId = urlObj.searchParams.get('v') || videoId;
+              } catch (e) {
+                console.error('Ошибка при разборе URL', e);
+              }
+            }
+            player.loadVideoById(videoId);
+            loadQueue();  // Обновляем очередь
+          } else {
+            player.stopVideo();
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+      
+    
+      // При инициализации плеера добавьте onStateChange:
+      function onYouTubeIframeAPIReady() {
+        player = new YT.Player('player', {
+          height: '390',
+          width: '640',
+          videoId: 'dQw4w9WgXcQ', // Начальное видео (RickRoll)
+          events: {
+            'onReady': onPlayerReady,
+            'onStateChange': onPlayerStateChange
+          }
+        });
+      }
+      window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+
+    // Получение токена из localStorage
+    function getToken() {
+      return localStorage.getItem('token');
+    }
+
+    // Глобальная переменная для отметки, что пользователь — хост
+    window.isHost = false;
+
+ // Загрузка информации о комнате и настройка элементов для хоста
+async function loadRoomInfo() {
+    try {
+      const res = await fetch(`/api/rooms/${roomId}`);
+      const room = await res.json();
+      document.getElementById('roomInfo').innerHTML = `<h2>${room.name}</h2><p>Хост: ${room.host.username}</p>`;
+      // Сохраняем настройки для использования в других функциях
+      window.autoNext = room.settings.autoNext;
+      window.allowAllControl = room.settings.allowAllControl;
+      
+      // Если в комнате задано текущее видео, извлекаем его YouTube ID
+      if (room.playerStatus && room.playerStatus.currentVideo) {
+        let currentVideoId = '';
+        // Если поле currentVideo является объектом (из populate), используем его поле url
+        if (typeof room.playerStatus.currentVideo === 'object' && room.playerStatus.currentVideo.url) {
+          currentVideoId = room.playerStatus.currentVideo.url;
+        } else {
+          // Иначе предполагаем, что там уже хранится строка
+          currentVideoId = room.playerStatus.currentVideo;
+        }
+        // Если currentVideoId содержит строку с "youtube.com", попробуем извлечь параметр "v"
+        if (currentVideoId && currentVideoId.includes('youtube.com')) {
+          try {
+            const urlObj = new URL(currentVideoId);
+            currentVideoId = urlObj.searchParams.get('v') || currentVideoId;
+          } catch (e) {
+            console.error('Ошибка при разборе URL', e);
+          }
+        }
+        // Сохраним полученный идентификатор в глобальной переменной
+        window.currentRoomVideoId = currentVideoId;
+        // Если плеер уже создан, обновляем его
+        if (player && currentVideoId) {
+          player.loadVideoById(currentVideoId);
+        }
+      }
+      
+      const token = getToken();
+      if (token) {
+        const userRes = await fetch('/api/auth/me', { headers: { 'x-auth-token': token } });
+        if (userRes.ok) {
+          const user = await userRes.json();
+          // Если ID текущего пользователя совпадает с ID хоста, пользователь — хост
+          if (user._id === room.host._id) {
+            window.isHost = true;
+            // Добавляем кнопки для хоста
+            const controlsDiv = document.getElementById('userControls');
+            controlsDiv.innerHTML = `
+              <button id="configRoomBtn">Конфигурация комнаты</button>
+              <button id="deleteRoomBtn">Удалить комнату</button>
+              <button id="nextVideoBtn">Следующее видео</button>
+            `;
+            // Обработчик кнопки "Следующее видео"
+            document.getElementById('nextVideoBtn').addEventListener('click', async () => {
+              const resNext = await fetch(`/api/rooms/${roomId}/next`, {
+                method: 'POST',
+                headers: { 'x-auth-token': token }
+              });
+              const resultNext = await resNext.json();
+              alert(resultNext.msg);
+              loadQueue();
+              // Если новое видео получено, отправляем событие всем участникам
+              if (resultNext.currentVideo && resultNext.currentVideo.url) {
+                socket.emit('videoChanged', { roomId: roomId, videoId: resultNext.currentVideo.url });
+              } else {
+                socket.emit('videoChanged', { roomId: roomId, videoId: null });
+              }
+            });
+            
+            // Обработчик открытия окна конфигурации
+            document.getElementById('configRoomBtn').addEventListener('click', () => {
+              // Заполняем поля текущими значениями
+              document.getElementById('roomNameInput').value = document.querySelector('#roomInfo h2').textContent;
+              document.getElementById('autoNextCheckbox').checked = window.autoNext;
+              document.getElementById('allowAllControlCheckbox').checked = window.allowAllControl;
+              document.getElementById('configModal').style.display = 'block';
+            });
+            
+            // Обработчик закрытия окна конфигурации
+            document.getElementById('closeConfigModal').addEventListener('click', () => {
+              document.getElementById('configModal').style.display = 'none';
+            });
+            window.addEventListener('click', (event) => {
+              const configModal = document.getElementById('configModal');
+              if (event.target === configModal) {
+                configModal.style.display = 'none';
+              }
+            });
+            
+            // Обработка отправки формы конфигурации
+            document.getElementById('configForm').addEventListener('submit', async (e) => {
+              e.preventDefault();
+              const formData = new FormData(e.target);
+              const data = {
+                name: formData.get('name'),
+                autoNext: formData.get('autoNext') === 'on' || formData.get('autoNext') === 'true',
+                allowAllControl: formData.get('allowAllControl') === 'on'
+              };
+              const token = getToken();
+              try {
+                const res = await fetch(`/api/rooms/${roomId}`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                  },
+                  body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                alert(result.msg);
+                document.getElementById('configModal').style.display = 'none';
+                loadRoomInfo(); // Обновляем информацию о комнате
+              } catch (err) {
+                console.error(err);
+              }
+            });
+            
+            // Обработчик кнопки "Удалить комнату"
+            document.getElementById('deleteRoomBtn').addEventListener('click', async () => {
+              const confirmDelete = confirm("Вы уверены, что хотите удалить комнату?");
+              if (confirmDelete) {
+                const resDelete = await fetch(`/api/rooms/${roomId}`, {
+                  method: 'DELETE',
+                  headers: { 'x-auth-token': token }
+                });
+                const resultDelete = await resDelete.json();
+                if (resDelete.ok) {
+                  alert(resultDelete.msg);
+                  window.location.href = '/';
+                } else {
+                  alert(resultDelete.msg);
+                }
+              }
+            });
+          }
+        }
+      }
+      // После загрузки информации о комнате — обновляем очередь
+      loadQueue();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  
+
+    // Загрузка и отображение очереди видео
+    async function loadQueue() {
+      try {
+        const res = await fetch(`/api/rooms/${roomId}`);
+        const room = await res.json();
+        const queueList = document.getElementById('queueList');
+        queueList.innerHTML = '';
+        if (room.queue && room.queue.length > 0) {
+          room.queue.forEach(video => {
+            const li = document.createElement('li');
+            li.textContent = video.title || video.url;
+            // Если пользователь — хост, добавляем кнопку удаления для каждого видео
+            if (window.isHost) {
+              const delBtn = document.createElement('button');
+              delBtn.textContent = 'Удалить';
+              delBtn.style.marginLeft = '10px';
+              delBtn.addEventListener('click', async () => {
+                const token = getToken();
+                const confirmDel = confirm('Удалить это видео из очереди?');
+                if (confirmDel) {
+                  const delRes = await fetch(`/api/rooms/${roomId}/video/${video._id}`, {
+                    method: 'DELETE',
+                    headers: { 'x-auth-token': token }
+                  });
+                  const delResult = await delRes.json();
+                  alert(delResult.msg);
+                  loadQueue();
+                }
+              });
+              li.appendChild(delBtn);
+            }
+            queueList.appendChild(li);
+          });
+        } else {
+          queueList.innerHTML = '<li>Очередь пуста</li>';
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    loadRoomInfo();
+
+    // Обработчики модального окна для предложения видео
+    const videoModal = document.getElementById('videoModal');
+    document.getElementById('proposeVideoBtn').addEventListener('click', () => {
+      videoModal.style.display = 'block';
+    });
+    document.getElementById('closeVideoModal').addEventListener('click', () => {
+      videoModal.style.display = 'none';
+    });
+    window.addEventListener('click', (event) => {
+      if (event.target === videoModal) {
+        videoModal.style.display = 'none';
+      }
+    });
+
+    // Обработчик формы предложения видео
+    document.getElementById('videoForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const videoUrl = formData.get('videoUrl');
+      const token = getToken();
+      if (!token) {
+        alert('Для предложения видео необходимо войти в систему');
+        return;
+      }
+      const res = await fetch('/api/videos/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token
+        },
+        body: JSON.stringify({
+          roomId,
+          type: 'youtube',
+          url: videoUrl
+        })
+      });
+      const result = await res.json();
+      if (result.video) {
+        alert('Видео добавлено в очередь');
+        videoModal.style.display = 'none';
+        loadQueue();
+      } else {
+        alert(result.msg || 'Ошибка при добавлении видео');
+      }
+    });
+
+    // Обработчик кнопки "На главную"
+    document.getElementById('backBtn').addEventListener('click', () => {
+      window.location.href = '/';
+    });
+  </script>
+</body>
+</html>
