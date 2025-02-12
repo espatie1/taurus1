@@ -1,41 +1,244 @@
-<!-- room.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
   <title>Комната WatchParty</title>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    /* Общий фон и шрифты */
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #181818;
+      color: #e0e0e0;
+    }
+    header {
+      background-color: #202020;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header button {
+      background-color: #444;
+      border: none;
+      padding: 8px 12px;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    header button:hover {
+      background-color: #555;
+    }
+    /* Основной контейнер */
+    .container {
+      display: flex;
+      height: calc(100vh - 60px); /* Высота окна минус header */
+    }
+    /* Левая колонка для плеера и управления */
+    .video-section {
+      flex: 3;
+      padding: 20px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    /* Адаптивный контейнер для плеера с соотношением 16:9 */
+    .player-container {
+      width: 100%;
+      max-width: 100%;
+      position: relative;
+      padding-bottom: 56.25%; /* 16:9 */
+      margin-bottom: 20px;
+    }
+    #player {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    /* Элементы управления плеером */
+    #controls {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      max-width: 600px;
+      margin-bottom: 20px;
+    }
+    #controls button {
+      flex: 1;
+      padding: 10px;
+      background-color: #444;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+    #controls button:hover {
+      background-color: #555;
+    }
+    /* Правая колонка – очередь видео */
+    .suggested-section {
+      flex: 1;
+      background-color: #282828;
+      padding: 20px;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+    .suggested-section h2 {
+      margin-top: 0;
+      text-align: center;
+    }
+    /* Карточка видео в очереди */
+    .video-card {
+      background-color: #1f1f1f;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 15px;
+      display: flex;
+      flex-direction: column;
+    }
+    .video-thumbnail {
+      width: 100%;
+      height: 0;
+      padding-bottom: 56.25%; /* 16:9 */
+      background-size: cover;
+      background-position: center;
+    }
+    .video-info {
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .video-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #fff;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .video-actions {
+      display: flex;
+      gap: 5px;
+    }
+    .video-actions button {
+      flex: 1;
+      padding: 5px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background-color 0.2s;
+    }
+    .play-btn {
+      background-color: #4caf50; /* зеленый */
+      color: #fff;
+    }
+    .play-btn:hover {
+      background-color: #45a049;
+    }
+    .delete-btn {
+      background-color: #f44336; /* красный */
+      color: #fff;
+    }
+    .delete-btn:hover {
+      background-color: #e53935;
+    }
+    /* Кнопка предложения видео */
+    #proposeVideoBtn {
+      padding: 10px 15px;
+      background-color: #444;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 4px;
+      margin-top: 20px;
+      transition: background-color 0.2s;
+    }
+    #proposeVideoBtn:hover {
+      background-color: #555;
+    }
+    /* Модальные окна остаются примерно прежними */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 100;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.7);
+    }
+    .modal-content {
+      background-color: #282828;
+      margin: 10% auto;
+      padding: 20px;
+      border: 1px solid #444;
+      width: 80%;
+      max-width: 500px;
+      color: #fff;
+      border-radius: 4px;
+    }
+    .modal-content input[type="text"],
+    .modal-content input[type="email"],
+    .modal-content input[type="password"] {
+      width: 100%;
+      padding: 8px;
+      margin: 5px 0 15px 0;
+      border: 1px solid #555;
+      border-radius: 4px;
+      background-color: #202020;
+      color: #fff;
+    }
+    .modal-content button {
+      padding: 10px 15px;
+      background-color: #444;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+    .modal-content button:hover {
+      background-color: #555;
+    }
+  </style>
 </head>
 <body>
   <header>
     <button id="backBtn">На главную</button>
     <div id="roomInfo">
-      <!-- Информация о комнате (название, хост и т.п.) -->
+      <!-- Информация о комнате -->
     </div>
     <div id="userControls">
-      <!-- Если пользователь — хост, здесь появятся кнопки для настройки, удаления и переключения видео -->
+      <!-- Кнопки для хоста -->
     </div>
   </header>
-  <main>
-    <!-- Контейнер для плеера YouTube -->
-    <div id="player"></div>
-
-    <!-- Элементы управления плеером -->
-    <div id="controls">
-      <button id="playBtn">Воспроизвести</button>
-      <button id="pauseBtn">Пауза</button>
-      <button id="rewindBtn">Перемотать</button>
+  <div class="container">
+    <!-- Левая колонка -->
+    <div class="video-section">
+      <div class="player-container">
+        <div id="player"></div>
+      </div>
+      <div id="controls">
+        <button id="playBtn">Воспроизвести</button>
+        <button id="pauseBtn">Пауза</button>
+        <button id="rewindBtn">Перемотать</button>
+      </div>
+      <button id="proposeVideoBtn">Предложить видео</button>
     </div>
-
-    <!-- Кнопка для предложения видео -->
-    <button id="proposeVideoBtn">Предложить видео</button>
-
-    <!-- Очередь видео -->
-    <div id="queue">
+    <!-- Правая колонка (очередь видео) -->
+    <div class="suggested-section">
       <h2>Очередь видео</h2>
-      <ul id="queueList"></ul>
+      <div id="queue"></div>
     </div>
-  </main>
+  </div>
 
   <!-- Модальное окно для предложения видео -->
   <div id="videoModal" class="modal">
@@ -75,429 +278,9 @@
     </div>
   </div>
 
+  <!-- Подключение библиотек и внешнего JS-кода -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
-  <script>
-    // ==================== ПАРАМЕТРЫ СИНХРОНИЗАЦИИ ====================
-    // Флаг для предотвращения циклической отправки событий (при удалённой синхронизации)
-    let isRemoteSync = false;
-
-    // Для отслеживания seek (перемотки) – буфер времени
-    let previousTime = 0;
-    const SEEK_THRESHOLD = 3; // порог в секундах для определения перемотки
-
-    // Для отслеживания play/pause – будем хранить предыдущее состояние плеера
-    // Состояния: PLAYING = 1, PAUSED = 2 (по спецификации YouTube IFrame API)
-    let previousPlayerState = null;
-    // Интервал для опроса состояния плеера (в миллисекундах)
-    const STATE_CHECK_INTERVAL = 500;
-
-    // ==================== ФУНКЦИЯ ОТСЛЕЖИВАНИЯ PLAY/PAUSE (локально) ====================
-    function checkLocalPlayerState() {
-      if (player && typeof player.getPlayerState === 'function') {
-        const currentState = player.getPlayerState(); // 1 = PLAYING, 2 = PAUSED, и т.д.
-        // Если еще не задано предыдущее состояние – сохраняем и выходим
-        if (previousPlayerState === null) {
-          previousPlayerState = currentState;
-          return;
-        }
-        // Если состояние изменилось (только для PLAYING и PAUSED)
-        if ((currentState === 1 || currentState === 2) && currentState !== previousPlayerState) {
-          console.log(`Local state change detected: from ${previousPlayerState} to ${currentState}`);
-          // Отправляем событие синхронизации
-          const action = (currentState === 1) ? 'play' : 'pause';
-          socket.emit('playerAction', { roomId, action, timestamp: player.getCurrentTime() });
-          previousPlayerState = currentState;
-        }
-      }
-    }
-    setInterval(checkLocalPlayerState, STATE_CHECK_INTERVAL);
-
-    // ==================== ФУНКЦИЯ ОТСЛЕЖИВАНИЯ SEEK (перемотки) ====================
-    function checkSeek() {
-      if (player && typeof player.getCurrentTime === 'function') {
-        const currentTime = player.getCurrentTime();
-        if (previousTime !== 0 && Math.abs(currentTime - previousTime) > SEEK_THRESHOLD) {
-          console.log(`Seek detected locally: Prev ${previousTime}, Current ${currentTime}`);
-          socket.emit('playerAction', { roomId, action: 'seek', timestamp: currentTime });
-        }
-        previousTime = currentTime;
-      }
-    }
-    setInterval(checkSeek, 1000); // проверка раз в секунду
-
-    // ==================== ИЗВЛЕЧЕНИЕ roomId ====================
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomId = urlParams.get('roomId');
-
-    // ==================== ИНИЦИАЛИЗАЦИЯ SOCKET.IO ====================
-    const socket = io();
-    socket.emit('joinRoom', roomId);
-    socket.on('userJoined', (data) => {
-      console.log(`Пользователь ${data.socketId} присоединился`);
-    });
-
-    // ==================== ОБРАБОТКА СОБЫТИЯ СИНХРОНИЗАЦИИ ОТ СЕРВЕРА ====================
-    socket.on('syncPlayer', (data) => {
-      if (player && typeof player.seekTo === 'function') {
-        isRemoteSync = true;  // устанавливаем флаг, чтобы onPlayerStateChange не отправлял событие
-        if (data.action === 'play') {
-          player.seekTo(data.timestamp, true);
-          player.playVideo();
-        } else if (data.action === 'pause') {
-          player.seekTo(data.timestamp, true);
-          player.pauseVideo();
-        } else if (data.action === 'rewind' || data.action === 'seek') {
-          player.seekTo(data.timestamp, true);
-        }
-        // Флаг будет сброшен в onPlayerStateChange
-      }
-    });
-
-    socket.on('videoChanged', (data) => {
-      if (data && data.videoId) {
-        let videoId = data.videoId;
-        if (videoId.includes('youtube.com')) {
-          try {
-            const urlObj = new URL(videoId);
-            videoId = urlObj.searchParams.get('v') || videoId;
-          } catch (e) {
-            console.error('Ошибка при разборе URL', e);
-          }
-        }
-        player.loadVideoById(videoId);
-      } else {
-        player.stopVideo();
-      }
-    });
-
-    // ==================== ИНИЦИАЛИЗАЦИЯ YOUTUBE PЛЕЕРА ====================
-    let player;
-    function onYouTubeIframeAPIReady() {
-      if (player && typeof player.destroy === 'function') {
-        player.destroy();
-        document.getElementById('player').innerHTML = '';
-      }
-      player = new YT.Player('player', {
-        height: '390',
-        width: '640',
-        videoId: 'dQw4w9WgXcQ', // дефолтное видео (RickRoll)
-        events: {
-          'onReady': onPlayerReady,
-          'onStateChange': onPlayerStateChange
-        }
-      });
-      window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
-    }
-    window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
-
-    function onPlayerReady(event) {
-      // Если для комнаты задано текущее видео (установлено через loadRoomInfo), переключаем плеер
-      if (window.currentRoomVideoId) {
-        player.loadVideoById(window.currentRoomVideoId);
-      }
-      // Автозапуск видео (если браузер не блокирует)
-      player.playVideo();
-      
-      // Привязываем обработчики кастомных кнопок управления
-      document.getElementById('playBtn').addEventListener('click', () => {
-        player.playVideo();
-        socket.emit('playerAction', { roomId, action: 'play', timestamp: player.getCurrentTime() });
-      });
-      document.getElementById('pauseBtn').addEventListener('click', () => {
-        player.pauseVideo();
-        socket.emit('playerAction', { roomId, action: 'pause', timestamp: player.getCurrentTime() });
-      });
-      document.getElementById('rewindBtn').addEventListener('click', () => {
-        const newTime = Math.max(player.getCurrentTime() - 10, 0);
-        player.seekTo(newTime, true);
-        socket.emit('playerAction', { roomId, action: 'rewind', timestamp: newTime });
-      });
-    }
-
-    // Обработка изменения состояния плеера через onStateChange
-    function onPlayerStateChange(event) {
-      // Если это изменение вызвано удалённой синхронизацией, сбрасываем флаг и выходим
-      if (isRemoteSync) {
-        isRemoteSync = false;
-        return;
-      }
-      // Мы больше не отправляем события play/pause здесь,
-      // так как будем полагаться на наш локальный опрос (checkLocalPlayerState),
-      // а onStateChange оставляем для обработки окончания видео и других событий.
-      if (event.data === YT.PlayerState.ENDED) {
-        if (window.isHost && window.autoNext) {
-          fetchNextVideo();
-        }
-      }
-    }
-
-    // ==================== ПОЛНОЕ ОПРОСНОЕ ОТСЛЕЖИВАНИЕ PLAY/PAUSE (каждые 500 мс) ====================
-    function checkLocalPlayerState() {
-      if (player && typeof player.getPlayerState === 'function') {
-        const currentState = player.getPlayerState(); // 1 = PLAYING, 2 = PAUSED, и т.д.
-        if (previousPlayerState === null) {
-          previousPlayerState = currentState;
-          return;
-        }
-        if ((currentState === 1 || currentState === 2) && currentState !== previousPlayerState) {
-          console.log(`Local state change: from ${previousPlayerState} to ${currentState}`);
-          const action = (currentState === 1) ? 'play' : 'pause';
-          socket.emit('playerAction', { roomId, action, timestamp: player.getCurrentTime() });
-          previousPlayerState = currentState;
-        }
-      }
-    }
-    setInterval(checkLocalPlayerState, 500);
-
-    // ==================== ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ НА СЛЕДУЮЩЕ ВИДЕО ====================
-    async function fetchNextVideo() {
-      const token = getToken();
-      try {
-        const res = await fetch(`/api/rooms/${roomId}/next`, {
-          method: 'POST',
-          headers: { 'x-auth-token': token }
-        });
-        const result = await res.json();
-        alert(result.msg);
-        if (result.currentVideo && result.currentVideo.url) {
-          let videoId = result.currentVideo.url;
-          if (videoId.includes('youtube.com')) {
-            try {
-              const urlObj = new URL(videoId);
-              videoId = urlObj.searchParams.get('v') || videoId;
-            } catch (e) {
-              console.error('Ошибка при разборе URL', e);
-            }
-          }
-          player.loadVideoById(videoId);
-          loadQueue();
-          socket.emit('videoChanged', { roomId, videoId: result.currentVideo.url });
-        } else {
-          player.stopVideo();
-          socket.emit('videoChanged', { roomId, videoId: null });
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    // Функция для получения токена из localStorage
-    function getToken() {
-      return localStorage.getItem('token');
-    }
-
-    // ==================== ЗАГРУЗКА ИНФОРМАЦИИ О КОМНАТЕ ====================
-    async function loadRoomInfo() {
-      try {
-        const res = await fetch(`/api/rooms/${roomId}`);
-        const room = await res.json();
-        document.getElementById('roomInfo').innerHTML = `<h2>${room.name}</h2><p>Хост: ${room.host.username}</p>`;
-        window.autoNext = room.settings.autoNext;
-        window.allowAllControl = room.settings.allowAllControl;
-        if (room.playerStatus && room.playerStatus.currentVideo) {
-          let currentVideoId = '';
-          if (typeof room.playerStatus.currentVideo === 'object' && room.playerStatus.currentVideo.url) {
-            currentVideoId = room.playerStatus.currentVideo.url;
-          } else {
-            currentVideoId = room.playerStatus.currentVideo;
-          }
-          if (currentVideoId && currentVideoId.includes('youtube.com')) {
-            try {
-              const urlObj = new URL(currentVideoId);
-              currentVideoId = urlObj.searchParams.get('v') || currentVideoId;
-            } catch (e) {
-              console.error('Ошибка при разборе URL', e);
-            }
-          }
-          window.currentRoomVideoId = currentVideoId;
-          if (player && currentVideoId) {
-            player.loadVideoById(currentVideoId);
-          }
-        }
-        const token = getToken();
-        if (token) {
-          const userRes = await fetch('/api/auth/me', { headers: { 'x-auth-token': token } });
-          if (userRes.ok) {
-            const user = await userRes.json();
-            if (user._id === room.host._id) {
-              window.isHost = true;
-              const controlsDiv = document.getElementById('userControls');
-              controlsDiv.innerHTML = `
-                <button id="configRoomBtn">Конфигурация комнаты</button>
-                <button id="deleteRoomBtn">Удалить комнату</button>
-                <button id="nextVideoBtn">Следующее видео</button>
-              `;
-              document.getElementById('nextVideoBtn').addEventListener('click', async () => {
-                const resNext = await fetch(`/api/rooms/${roomId}/next`, {
-                  method: 'POST',
-                  headers: { 'x-auth-token': token }
-                });
-                const resultNext = await resNext.json();
-                alert(resultNext.msg);
-                loadQueue();
-                if (resultNext.currentVideo && resultNext.currentVideo.url) {
-                  socket.emit('videoChanged', { roomId, videoId: resultNext.currentVideo.url });
-                } else {
-                  socket.emit('videoChanged', { roomId, videoId: null });
-                }
-              });
-              document.getElementById('configRoomBtn').addEventListener('click', () => {
-                document.getElementById('roomNameInput').value = document.querySelector('#roomInfo h2').textContent;
-                document.getElementById('autoNextCheckbox').checked = window.autoNext;
-                document.getElementById('allowAllControlCheckbox').checked = window.allowAllControl;
-                document.getElementById('configModal').style.display = 'block';
-              });
-              document.getElementById('closeConfigModal').addEventListener('click', () => {
-                document.getElementById('configModal').style.display = 'none';
-              });
-              window.addEventListener('click', (event) => {
-                const configModal = document.getElementById('configModal');
-                if (event.target === configModal) {
-                  configModal.style.display = 'none';
-                }
-              });
-              document.getElementById('configForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const formData = new FormData(e.target);
-                const data = {
-                  name: formData.get('name'),
-                  autoNext: formData.get('autoNext') === 'on' || formData.get('autoNext') === 'true',
-                  allowAllControl: formData.get('allowAllControl') === 'on'
-                };
-                const token = getToken();
-                try {
-                  const res = await fetch(`/api/rooms/${roomId}`, {
-                    method: 'PUT',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'x-auth-token': token
-                    },
-                    body: JSON.stringify(data)
-                  });
-                  const result = await res.json();
-                  alert(result.msg);
-                  document.getElementById('configModal').style.display = 'none';
-                  loadRoomInfo();
-                } catch (err) {
-                  console.error(err);
-                }
-              });
-              document.getElementById('deleteRoomBtn').addEventListener('click', async () => {
-                const confirmDelete = confirm("Вы уверены, что хотите удалить комнату?");
-                if (confirmDelete) {
-                  const resDelete = await fetch(`/api/rooms/${roomId}`, {
-                    method: 'DELETE',
-                    headers: { 'x-auth-token': token }
-                  });
-                  const resultDelete = await resDelete.json();
-                  if (resDelete.ok) {
-                    alert(resultDelete.msg);
-                    window.location.href = '/';
-                  } else {
-                    alert(resultDelete.msg);
-                  }
-                }
-              });
-            }
-          }
-        }
-        loadQueue();
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    async function loadQueue() {
-      try {
-        const res = await fetch(`/api/rooms/${roomId}`);
-        const room = await res.json();
-        const queueList = document.getElementById('queueList');
-        queueList.innerHTML = '';
-        if (room.queue && room.queue.length > 0) {
-          room.queue.forEach(video => {
-            const li = document.createElement('li');
-            li.textContent = video.title || video.url;
-            if (window.isHost) {
-              const delBtn = document.createElement('button');
-              delBtn.textContent = 'Удалить';
-              delBtn.style.marginLeft = '10px';
-              delBtn.addEventListener('click', async () => {
-                const token = getToken();
-                const confirmDel = confirm('Удалить это видео из очереди?');
-                if (confirmDel) {
-                  const delRes = await fetch(`/api/rooms/${roomId}/video/${video._id}`, {
-                    method: 'DELETE',
-                    headers: { 'x-auth-token': token }
-                  });
-                  const delResult = await delRes.json();
-                  alert(delResult.msg);
-                  loadQueue();
-                }
-              });
-              li.appendChild(delBtn);
-            }
-            queueList.appendChild(li);
-          });
-        } else {
-          queueList.innerHTML = '<li>Очередь пуста</li>';
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    loadRoomInfo();
-
-    // ==================== ОБРАБОТЧИКИ МОДАЛЬНЫХ ОКОН ====================
-    const videoModal = document.getElementById('videoModal');
-    document.getElementById('proposeVideoBtn').addEventListener('click', () => {
-      videoModal.style.display = 'block';
-    });
-    document.getElementById('closeVideoModal').addEventListener('click', () => {
-      videoModal.style.display = 'none';
-    });
-    window.addEventListener('click', (event) => {
-      if (event.target === videoModal) {
-        videoModal.style.display = 'none';
-      }
-    });
-
-    document.getElementById('videoForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const formData = new FormData(e.target);
-      const videoUrl = formData.get('videoUrl');
-      const token = getToken();
-      if (!token) {
-        alert('Для предложения видео необходимо войти в систему');
-        return;
-      }
-      const res = await fetch('/api/videos/add', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': token
-        },
-        body: JSON.stringify({
-          roomId,
-          type: 'youtube',
-          url: videoUrl
-        })
-      });
-      const result = await res.json();
-      if (result.video) {
-        alert('Видео добавлено в очередь');
-        videoModal.style.display = 'none';
-        loadQueue();
-      } else {
-        alert(result.msg || 'Ошибка при добавлении видео');
-      }
-    });
-
-    document.getElementById('backBtn').addEventListener('click', () => {
-      window.location.href = '/';
-    });
-  </script>
-
+  <script src="/js/room.js"></script>
 </body>
 </html>
