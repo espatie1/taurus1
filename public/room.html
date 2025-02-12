@@ -79,7 +79,31 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-    // Извлечение roomId из URL
+        // Извлечение roomId из URL
+
+        // Глобальная переменная для хранения предыдущего времени воспроизведения
+    let previousTime = 0;
+    // Порог, при котором будем считать, что произошла перемотка (в секундах)
+    const SEEK_THRESHOLD = 3; // 3 секунды
+
+    // Функция, которая проверяет, насколько сильно изменилось время воспроизведения
+    function checkSeek() {
+    if (player && typeof player.getCurrentTime === 'function') {
+        const currentTime = player.getCurrentTime();
+        // Если разница между текущим и предыдущим временем больше порога,
+        // считаем, что произошла перемотка
+        if (previousTime !== 0 && Math.abs(currentTime - previousTime) > SEEK_THRESHOLD) {
+        console.log(`Seek detected. Previous time: ${previousTime}, Current time: ${currentTime}`);
+        // Отправляем событие перемотки (action: 'seek') всем участникам комнаты
+        socket.emit('playerAction', { roomId, action: 'seek', timestamp: currentTime });
+        }
+        previousTime = currentTime;
+    }
+    }
+
+    // Запускаем периодическую проверку каждые 1000 мс (1 секунда)
+    setInterval(checkSeek, 1000);
+
     const urlParams = new URLSearchParams(window.location.search);
     const roomId = urlParams.get('roomId');
 
@@ -92,15 +116,21 @@
     });
 
     socket.on('syncPlayer', (data) => {
-      if (player && typeof player.seekTo === 'function') {
-        player.seekTo(data.timestamp, true);
-        if (data.action === 'play') {
-          player.playVideo();
-        } else if (data.action === 'pause') {
-          player.pauseVideo();
+        if (player && typeof player.seekTo === 'function') {
+          if (data.action === 'play') {
+            player.playVideo();
+          } else if (data.action === 'pause') {
+            player.pauseVideo();
+          } else if (data.action === 'rewind') {
+            player.seekTo(data.timestamp, true);
+          } else if (data.action === 'seek') {
+            // Если действие "seek", перематываем плеер на указанное время
+            player.seekTo(data.timestamp, true);
+            console.log(`Synchronized seek to: ${data.timestamp}`);
+          }
         }
-      }
-    });
+      });
+      
 
     socket.on('videoChanged', (data) => {
         if(data && data.videoId) {
