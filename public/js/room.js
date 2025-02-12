@@ -6,35 +6,48 @@ document.addEventListener('DOMContentLoaded', () => {
     let previousPlayerState = null;
     const STATE_CHECK_INTERVAL = 500;
     
+    // В начале скрипта внутри DOMContentLoaded:
+    let initialSyncSuppressed = true;
+    setTimeout(() => {
+        initialSyncSuppressed = false;
+        console.log("Синхронизация включена");
+    }, 2000);
+
     // --------------------- Функция отслеживания состояния play/pause ---------------------
     function checkLocalPlayerState() {
-      if (player && typeof player.getPlayerState === 'function') {
-        const currentState = player.getPlayerState(); // 1 = PLAYING, 2 = PAUSED, и т.д.
-        if (previousPlayerState === null) {
-          previousPlayerState = currentState;
-          return;
-        }
-        if ((currentState === 1 || currentState === 2) && currentState !== previousPlayerState) {
-          console.log(`Local state change: from ${previousPlayerState} to ${currentState}`);
-          const action = (currentState === 1) ? 'play' : 'pause';
-          socket.emit('playerAction', { roomId, action, timestamp: player.getCurrentTime() });
-          previousPlayerState = currentState;
+        if (player && typeof player.getPlayerState === 'function') {
+          // Если первые 2 секунды, не отправляем синхронизацию
+          if (initialSyncSuppressed) return;
+          const currentState = player.getPlayerState(); // 1 = PLAYING, 2 = PAUSED, ...
+          if (previousPlayerState === null) {
+            previousPlayerState = currentState;
+            return;
+          }
+          if ((currentState === 1 || currentState === 2) && currentState !== previousPlayerState) {
+            console.log(`Local state change: from ${previousPlayerState} to ${currentState}`);
+            const action = (currentState === 1) ? 'play' : 'pause';
+            socket.emit('playerAction', { roomId, action, timestamp: player.getCurrentTime() });
+            previousPlayerState = currentState;
+          }
         }
       }
-    }
+      
     setInterval(checkLocalPlayerState, STATE_CHECK_INTERVAL);
     
     // --------------------- Функция отслеживания seek ---------------------
     function checkSeek() {
-      if (player && typeof player.getCurrentTime === 'function') {
-        const currentTime = player.getCurrentTime();
-        if (previousTime !== 0 && Math.abs(currentTime - previousTime) > SEEK_THRESHOLD) {
-          console.log(`Seek detected locally: Prev ${previousTime}, Current ${currentTime}`);
-          socket.emit('playerAction', { roomId, action: 'seek', timestamp: currentTime });
+        if (player && typeof player.getCurrentTime === 'function') {
+          // Если первые 2 секунды, не отправляем синхронизацию
+          if (initialSyncSuppressed) return;
+          const currentTime = player.getCurrentTime();
+          if (previousTime !== 0 && Math.abs(currentTime - previousTime) > SEEK_THRESHOLD) {
+            console.log(`Seek detected locally: Prev ${previousTime}, Current ${currentTime}`);
+            socket.emit('playerAction', { roomId, action: 'seek', timestamp: currentTime });
+          }
+          previousTime = currentTime;
         }
-        previousTime = currentTime;
       }
-    }
+      
     setInterval(checkSeek, 1000);
     
     // --------------------- Извлечение roomId ---------------------
@@ -61,7 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (data.action === 'rewind' || data.action === 'seek') {
           player.seekTo(data.timestamp, true);
         }
-        // Флаг isRemoteSync сбрасывается в onPlayerStateChange
       }
     });
     
@@ -91,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       player = new YT.Player('player', {
         height: '390',
-        width: '100%', // Ширина задается контейнером (например, player-container)
+        width: '100%', // ширина задается через контейнер (player-container)
         videoId: 'dQw4w9WgXcQ', // Дефолтное видео (RickRoll)
         events: {
           'onReady': onPlayerReady,
@@ -123,55 +135,61 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function onPlayerStateChange(event) {
-      if (isRemoteSync) {
-        isRemoteSync = false;
-        return;
-      }
-      if (event.data === YT.PlayerState.ENDED) {
-        if (window.isHost && window.autoNext) {
-          fetchNextVideo();
+        if (isRemoteSync) {
+          isRemoteSync = false;
+          return;
+        }
+        if (event.data === YT.PlayerState.ENDED) {
+          console.log("Видео завершилось");
+          if (window.isHost && window.autoNext) {
+            fetchNextVideo();
+          } else {
+            console.log("AutoNext не включён или пользователь не является хостом");
+          }
         }
       }
-    }
+      
     
     // --------------------- Функция переключения на следующее видео ---------------------
     async function fetchNextVideo() {
-      const token = getToken();
-      try {
-        const res = await fetch(`/api/rooms/${roomId}/next`, {
-          method: 'POST',
-          headers: { 'x-auth-token': token }
-        });
-        const result = await res.json();
-        alert(result.msg);
-        if (result.currentVideo && result.currentVideo.url) {
-          let videoId = result.currentVideo.url;
-          if (videoId.includes('youtube.com')) {
-            try {
-              const urlObj = new URL(videoId);
-              videoId = urlObj.searchParams.get('v') || videoId;
-            } catch (e) {
-              console.error('Ошибка при разборе URL', e);
+        const token = getToken();
+        try {
+          const res = await fetch(`/api/rooms/${roomId}/next`, {
+            method: 'POST',
+            headers: { 'x-auth-token': token }
+          });
+          const result = await res.json();
+          alert(result.msg);
+          if (result.currentVideo && result.currentVideo.url) {
+            let videoId = result.currentVideo.url;
+            if (videoId.includes('youtube.com')) {
+              try {
+                const urlObj = new URL(videoId);
+                videoId = urlObj.searchParams.get('v') || videoId;
+              } catch (e) {
+                console.error('Ошибка при разборе URL', e);
+              }
             }
+            player.loadVideoById(videoId);
+            loadQueue();
+            socket.emit('videoChanged', { roomId, videoId: result.currentVideo.url });
+          } else {
+            player.stopVideo();
+            socket.emit('videoChanged', { roomId, videoId: null });
+            alert("Очередь пуста");
           }
-          player.loadVideoById(videoId);
-          loadQueue();
-          socket.emit('videoChanged', { roomId, videoId: result.currentVideo.url });
-        } else {
-          player.stopVideo();
-          socket.emit('videoChanged', { roomId, videoId: null });
+        } catch (err) {
+          console.error(err);
         }
-      } catch (err) {
-        console.error(err);
       }
-    }
+      
     
     // --------------------- Получение токена из localStorage ---------------------
     function getToken() {
       return localStorage.getItem('token');
     }
     
-    // --------------------- Загрузка информации о комнате ---------------------
+    // --------------------- Функция загрузки информации о комнате ---------------------
     async function loadRoomInfo() {
       try {
         const res = await fetch(`/api/rooms/${roomId}`);
@@ -294,68 +312,104 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --------------------- Функция создания карточки видео ---------------------
     function createVideoCard(video) {
-      let videoId = video.url;
-      if (videoId.includes('youtube.com')) {
-        try {
-          const urlObj = new URL(videoId);
-          videoId = urlObj.searchParams.get('v') || videoId;
-        } catch (e) {
-          console.error('Ошибка при разборе URL', e);
+        let videoId = video.url;
+        if (videoId.includes('youtube.com')) {
+          try {
+            const urlObj = new URL(videoId);
+            videoId = urlObj.searchParams.get('v') || videoId;
+          } catch (e) {
+            console.error('Ошибка при разборе URL', e);
+          }
         }
+        const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+      
+        const card = document.createElement('div');
+        card.className = 'video-card';
+      
+        const thumbnail = document.createElement('div');
+        thumbnail.className = 'video-thumbnail';
+        thumbnail.style.backgroundImage = `url(${thumbnailUrl})`;
+        card.appendChild(thumbnail);
+      
+        const info = document.createElement('div');
+        info.className = 'video-info';
+      
+        const title = document.createElement('div');
+        title.className = 'video-title';
+        title.textContent = video.title || video.url;
+        info.appendChild(title);
+      
+        const actions = document.createElement('div');
+        actions.className = 'video-actions';
+      
+        // Зеленая кнопка «Play»
+        const playBtn = document.createElement('button');
+        playBtn.className = 'play-btn';
+        playBtn.textContent = 'Play';
+        playBtn.addEventListener('click', async () => {
+          // Загружаем выбранное видео в плеер
+          player.loadVideoById(videoId);
+          socket.emit('videoChanged', { roomId, videoId: video.url });
+      
+          // Если пользователь — хост, обновляем текущее видео и удаляем его из очереди
+          if (window.isHost) {
+            const token = getToken();
+            if (token) {
+              try {
+                // 1. Обновляем поле currentVideo через endpoint updateCurrentVideo
+                await fetch(`/api/rooms/${roomId}/updateCurrentVideo`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                  },
+                  body: JSON.stringify({ currentVideo: video._id })
+                });
+                // 2. Удаляем видео из очереди (без подтверждения)
+                await fetch(`/api/rooms/${roomId}/video/${video._id}`, {
+                  method: 'DELETE',
+                  headers: { 'x-auth-token': token }
+                });
+                // Ждем небольшую задержку, затем обновляем очередь
+                setTimeout(loadQueue, 500);
+              } catch (err) {
+                console.error('Ошибка при обновлении текущего видео или удалении из очереди', err);
+              }
+            }
+          }
+        });
+        actions.appendChild(playBtn);
+      
+        // Кнопка удаления видео (с подтверждением)
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.textContent = 'Удалить';
+        deleteBtn.addEventListener('click', async () => {
+          const token = getToken();
+          const confirmDel = confirm('Удалить это видео из очереди?');
+          if (confirmDel && token) {
+            try {
+              const delRes = await fetch(`/api/rooms/${roomId}/video/${video._id}`, {
+                method: 'DELETE',
+                headers: { 'x-auth-token': token }
+              });
+              const delResult = await delRes.json();
+              alert(delResult.msg);
+              loadQueue();
+            } catch (err) {
+              console.error('Ошибка при удалении видео', err);
+            }
+          }
+        });
+        actions.appendChild(deleteBtn);
+      
+        info.appendChild(actions);
+        card.appendChild(info);
+      
+        return card;
       }
-      const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-    
-      const card = document.createElement('div');
-      card.className = 'video-card';
-    
-      const thumbnail = document.createElement('div');
-      thumbnail.className = 'video-thumbnail';
-      thumbnail.style.backgroundImage = `url(${thumbnailUrl})`;
-      card.appendChild(thumbnail);
-    
-      const info = document.createElement('div');
-      info.className = 'video-info';
-    
-      const title = document.createElement('div');
-      title.className = 'video-title';
-      title.textContent = video.title || video.url;
-      info.appendChild(title);
-    
-      const actions = document.createElement('div');
-      actions.className = 'video-actions';
-    
-      const playBtn = document.createElement('button');
-      playBtn.className = 'play-btn';
-      playBtn.textContent = 'Play';
-      playBtn.addEventListener('click', () => {
-        player.loadVideoById(videoId);
-        socket.emit('videoChanged', { roomId, videoId: video.url });
-      });
-      actions.appendChild(playBtn);
-    
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'delete-btn';
-      deleteBtn.textContent = 'Удалить';
-      deleteBtn.addEventListener('click', async () => {
-        const token = getToken();
-        const confirmDel = confirm('Удалить это видео из очереди?');
-        if (confirmDel) {
-          const delRes = await fetch(`/api/rooms/${roomId}/video/${video._id}`, {
-            method: 'DELETE',
-            headers: { 'x-auth-token': token }
-          });
-          const delResult = await delRes.json();
-          alert(delResult.msg);
-          loadQueue();
-        }
-      });
-      actions.appendChild(deleteBtn);
-    
-      info.appendChild(actions);
-      card.appendChild(info);
-    
-      return card;
-    }
+      
+  
     
     // --------------------- Обновлённая функция loadQueue() ---------------------
     async function loadQueue() {
@@ -379,18 +433,24 @@ document.addEventListener('DOMContentLoaded', () => {
     
     loadRoomInfo();
     
+    // Полезно обновлять очередь каждые 2 секунды для динамичности
+    setInterval(loadQueue, 2000);
+    
     // --------------------- Обработчики модальных окон ---------------------
     const videoModal = document.getElementById('videoModal');
+    const closeVideoModal = document.getElementById('closeVideoModal');
+    closeVideoModal.addEventListener('click', () => {
+        videoModal.style.display = 'none';
+      });
+    
+      // Закрытие по нажатию клавиши Esc
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          videoModal.style.display = 'none';
+        }
+      });
     document.getElementById('proposeVideoBtn').addEventListener('click', () => {
       videoModal.style.display = 'block';
-    });
-    document.getElementById('closeVideoModal').addEventListener('click', () => {
-      videoModal.style.display = 'none';
-    });
-    window.addEventListener('click', (event) => {
-      if (event.target === videoModal) {
-        videoModal.style.display = 'none';
-      }
     });
     
     document.getElementById('videoForm').addEventListener('submit', async (e) => {

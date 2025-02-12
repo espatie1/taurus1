@@ -88,6 +88,24 @@ exports.nextVideo = async (req, res) => {
     }
   };
   
+  exports.updateCurrentVideo = async (req, res) => {
+    const roomId = req.params.id;
+    const { currentVideo } = req.body; // ожидается _id видео, которое должно стать текущим
+    try {
+      const room = await Room.findById(roomId);
+      if (!room) return res.status(404).json({ msg: "Комната не найдена" });
+      // Только хост может обновлять текущее видео
+      if (room.host.toString() !== req.user.id) {
+        return res.status(403).json({ msg: "Только хост может обновлять текущее видео" });
+      }
+      room.playerStatus.currentVideo = currentVideo;
+      await room.save();
+      res.json({ msg: "Текущее видео обновлено", room });
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).json({ msg: "Ошибка сервера" });
+    }
+  };
   
 
 // Удаление видео из очереди (только для хоста)

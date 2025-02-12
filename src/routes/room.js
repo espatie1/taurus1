@@ -30,6 +30,9 @@ router.delete('/:id/video/:videoId', auth, removeVideo);
 // Обновление настроек комнаты (для хоста)
 router.put('/:id', auth, updateRoom);
 
+// Добавляем маршрут для обновления текущего видео (только для хоста)
+router.put('/:id/updateCurrentVideo', auth, require('../controllers/roomController').updateCurrentVideo);
+
 // Удаление комнаты (для хоста)
 router.delete('/:id', auth, deleteRoom);
 

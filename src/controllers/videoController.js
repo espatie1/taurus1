@@ -18,9 +18,10 @@ exports.addVideo = async (req, res) => {
             return res.status(404).json({ msg: 'Комната не найдена' });
         }
 
+        // Создаем видео, сохраняя только YouTube ID (если это ссылка)
         const video = new Video({
             type,
-            url: extractYouTubeId(url), // сохраняем только ID, если это YouTube URL
+            url: extractYouTubeId(url),
             title: title || '',
             duration: duration || 0,
             addedBy: req.user.id
@@ -29,6 +30,10 @@ exports.addVideo = async (req, res) => {
 
         // Добавляем видео в очередь комнаты
         room.queue.push(video._id);
+        // Если текущее видео не установлено, устанавливаем его как только что добавленное видео
+        if (!room.playerStatus.currentVideo) {
+            room.playerStatus.currentVideo = video._id;
+        }
         await room.save();
 
         res.json({ msg: 'Видео добавлено в очередь', video });
@@ -37,3 +42,4 @@ exports.addVideo = async (req, res) => {
         res.status(500).json({ msg: 'Ошибка сервера' });
     }
 };
+

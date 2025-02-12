@@ -3,7 +3,163 @@
 <head>
   <meta charset="UTF-8">
   <title>WatchParty - Главная</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    /* Основные стили */
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #121212;
+      color: #e0e0e0;
+    }
+    header {
+      background-color: #1e1e1e;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 28px;
+      color: #fff;
+    }
+    #user-info {
+      font-size: 16px;
+    }
+    main {
+      padding: 20px;
+    }
+    /* Секция с комнатами */
+    .rooms-section {
+      margin-bottom: 30px;
+    }
+    .rooms-section h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 24px;
+      color: #fff;
+    }
+    .rooms-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+    .room-card {
+      background-color: #1f1f1f;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      transition: transform 0.2s;
+      cursor: pointer;
+    }
+    .room-card:hover {
+      transform: scale(1.02);
+    }
+    .room-card h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+      color: #fff;
+    }
+    .room-card p {
+      margin: 5px 0;
+      font-size: 14px;
+      color: #ccc;
+    }
+    /* Кнопка создания комнаты */
+    #createRoomBtn {
+      background-color: #4caf50;
+      color: #fff;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.2s;
+      display: block;
+      margin: 20px auto;
+    }
+    #createRoomBtn:hover {
+      background-color: #45a049;
+    }
+    /* Модальные окна */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 100;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.8);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background-color: #1e1e1e;
+      padding: 20px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .modal-content h2 {
+      margin-top: 0;
+      font-size: 24px;
+      color: #fff;
+    }
+    .modal-content input {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #333;
+      border-radius: 4px;
+      background-color: #121212;
+      color: #e0e0e0;
+    }
+    .modal-content button {
+      background-color: #4caf50;
+      color: #fff;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      width: 100%;
+      font-size: 16px;
+    }
+    .modal-content button:hover {
+      background-color: #45a049;
+    }
+    .close {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 24px;
+      color: #fff;
+      cursor: pointer;
+    }
+    /* Кнопки для авторизации */
+    #auth-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      justify-content: center;
+    }
+    #auth-buttons button {
+      background-color: #444;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      color: #fff;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    #auth-buttons button:hover {
+      background-color: #555;
+    }
+  </style>
 </head>
 <body>
   <header>
@@ -13,15 +169,17 @@
     </div>
   </header>
   <main>
-    <section id="rooms-list">
+    <section class="rooms-section">
       <h2>Доступные комнаты</h2>
-      <ul id="roomsContainer"></ul>
+      <div class="rooms-grid" id="roomsContainer">
+        <!-- Здесь динамически создаются карточки комнат -->
+      </div>
     </section>
     <section id="actions">
       <button id="createRoomBtn" style="display: none;">Создать комнату</button>
     </section>
   </main>
-
+  
   <!-- Модальное окно для входа -->
   <div id="loginModal" class="modal">
     <div class="modal-content">
@@ -34,7 +192,7 @@
       </form>
     </div>
   </div>
-
+  
   <!-- Модальное окно для регистрации -->
   <div id="registerModal" class="modal">
     <div class="modal-content">
@@ -48,19 +206,19 @@
       </form>
     </div>
   </div>
-
-  <!-- Кнопки для открытия модальных окон -->
+  
+  <!-- Кнопки для открытия модальных окон, если пользователь не авторизован -->
   <div id="auth-buttons">
     <button id="openLogin">Войти</button>
     <button id="openRegister">Регистрация</button>
   </div>
-
+  
   <script>
     // Функция для получения токена из localStorage
     function getToken() {
       return localStorage.getItem('token');
     }
-
+    
     // Загрузка информации о пользователе
     async function loadUserInfo() {
       const token = getToken();
@@ -85,8 +243,8 @@
         }
       }
     }
-
-    // Загрузка списка комнат
+    
+    // Загрузка списка комнат и вывод в виде карточек
     async function loadRooms() {
       try {
         const res = await fetch('/api/rooms');
@@ -94,27 +252,31 @@
         const container = document.getElementById('roomsContainer');
         container.innerHTML = '';
         rooms.forEach(room => {
-          const li = document.createElement('li');
-          li.innerHTML = `<strong>${room.name}</strong> — Хост: ${room.host} — Участников: ${room.participantsCount}`;
-          li.addEventListener('click', () => {
-            // При клике переходим в комнату
+          const card = document.createElement('div');
+          card.className = 'room-card';
+          card.innerHTML = `
+            <h2>${room.name}</h2>
+            <p><strong>Хост:</strong> ${room.host}</p>
+            <p><strong>Участников:</strong> ${room.participantsCount}</p>
+          `;
+          card.addEventListener('click', () => {
             window.location.href = `/room.html?roomId=${room.id}`;
           });
-          container.appendChild(li);
+          container.appendChild(card);
         });
       } catch (err) {
         console.error(err);
       }
     }
-
+    
     // Обработчики модальных окон
     const loginModal = document.getElementById('loginModal');
     const registerModal = document.getElementById('registerModal');
     document.getElementById('openLogin').addEventListener('click', () => {
-      loginModal.style.display = 'block';
+      loginModal.style.display = 'flex';
     });
     document.getElementById('openRegister').addEventListener('click', () => {
-      registerModal.style.display = 'block';
+      registerModal.style.display = 'flex';
     });
     document.getElementById('closeLogin').addEventListener('click', () => {
       loginModal.style.display = 'none';
@@ -126,7 +288,7 @@
       if (event.target === loginModal) loginModal.style.display = 'none';
       if (event.target === registerModal) registerModal.style.display = 'none';
     });
-
+    
     // Обработчики форм регистрации и входа
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -147,7 +309,7 @@
         alert(result.msg);
       }
     });
-
+    
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(e.target);
@@ -167,7 +329,7 @@
         alert(result.msg);
       }
     });
-
+    
     // Обработчик кнопки создания комнаты
     document.getElementById('createRoomBtn').addEventListener('click', async () => {
       const token = getToken();
@@ -191,7 +353,7 @@
         alert(room.msg || 'Ошибка создания комнаты');
       }
     });
-
+    
     // Инициализация
     loadUserInfo();
     loadRooms();
